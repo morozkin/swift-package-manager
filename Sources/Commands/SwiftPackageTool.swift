@@ -201,6 +201,14 @@ public class SwiftPackageTool: SwiftTool<PackageToolOptions> {
             }
         case .help:
             parser.printUsage(on: stdoutStream)
+        case .add:
+            if case let addProductOptions = options.addOptions.productOptions {
+                
+            } else if case let addTargetOptions = options.addOptions.targetOptions {
+                
+            } else if case let addDependencyOptions = options.addOptions.dependencyOptions {
+                
+            }
         }
     }
 
@@ -347,6 +355,49 @@ public class SwiftPackageTool: SwiftTool<PackageToolOptions> {
                 $0.resolveOptions.branch = $2
                 $0.resolveOptions.revision = $3 })
 
+        let addParser = parser.add(subparser: PackageMode.add.rawValue, overview: "Add target or dependency to a package")
+        
+        let addProductParser = addParser.add(subparser: AddMode.product.rawValue, overview: "Add product to a package")
+        binder.bind(
+            positional: addProductParser.add(
+                positional: "name", kind: String.self,
+                usage: "The name of the product to add"),
+            to: { $0.addOptions.productOptions = PackageToolOptions.AddOptions.ProductOptions(name: $1) })
+        binder.bind(
+            option: addProductParser.add(
+                option: "--type", kind: PackageToolOptions.AddOptions.ProductOptions.ProductType.self,
+                usage: "Type of the product"),
+            to: { $0.addOptions.productOptions!.type = $1 })
+        
+        let addTargetParser = addParser.add(subparser: AddMode.target.rawValue, overview: "Add target to a package")
+        binder.bind(
+            positional: addTargetParser.add(
+                positional: "name", kind: String.self,
+                usage: "The name of the target to add"),
+            to: { $0.addOptions.targetOptions = PackageToolOptions.AddOptions.TargetOptions(name: $1) })
+        binder.bindArray(
+            positional: addTargetParser.add(
+                positional: "dependencies", kind: [String].self, optional: true, strategy: .upToNextOption,
+                usage: "The list of dependicies for the target"),
+            to: { $0.addOptions.targetOptions!.dependencies = $1 })
+        binder.bind(
+            option: addTargetParser.add(
+                option: "--with-tests", kind: Bool.self,
+                usage: "Add test target"),
+            to: { $0.addOptions.targetOptions!.isTest = $1 })
+        
+        let addDependencyParser = addParser.add(subparser: AddMode.dependency.rawValue, overview: "Add dependency to a package")
+        binder.bind(
+            positional: addDependencyParser.add(
+                positional: "url", kind: String.self,
+                usage: "The url of the dependency to add"),
+            to: { $0.addOptions.dependencyOptions = PackageToolOptions.AddOptions.DependencyOptions(url: $1) })
+        binder.bind(
+            option: addDependencyParser.add(
+                option: "--latest-major-version", kind: Bool.self,
+                usage: "Use latest major version"),
+            to: { $0.addOptions.dependencyOptions!.useLatestMajorVersion = $1 })
+        
         binder.bind(
             parser: parser,
             to: { $0.mode = PackageMode(rawValue: $1)! })
@@ -406,6 +457,48 @@ public class PackageToolOptions: ToolOptions {
         case setCurrent
     }
     var toolsVersionMode: ToolsVersionMode = .display
+    
+    struct AddOptions {
+        struct ProductOptions {
+            enum ProductType: String, StringEnumArgument {
+                case executable
+                case library
+                
+                static var completion: ShellCompletion = .none
+            }
+            
+            let name: String
+            var type = ProductType.executable
+            
+            init(name: String) {
+                self.name = name
+            }
+        }
+        
+        struct TargetOptions {
+            let name: String
+            var dependencies: [String]?
+            var isTest = false
+            
+            init(name: String) {
+                self.name = name
+            }
+        }
+        
+        struct DependencyOptions {
+            let url: String
+            var useLatestMajorVersion = false
+            
+            init(url: String) {
+                self.url = url
+            }
+        }
+        
+        var productOptions: ProductOptions?
+        var targetOptions: TargetOptions?
+        var dependencyOptions: DependencyOptions?
+    }
+    var addOptions = AddOptions()
 }
 
 public enum PackageMode: String, StringEnumArgument {
@@ -423,12 +516,19 @@ public enum PackageMode: String, StringEnumArgument {
     case toolsVersion = "tools-version"
     case unedit
     case update
+    case add
     case version
     case help
 
     // PackageMode is not used as an argument; completions will be
     // provided by the subparsers.
     public static var completion: ShellCompletion = .none
+}
+
+public enum AddMode: String {
+    case product
+    case target
+    case dependency
 }
 
 extension InitPackage.PackageType: StringEnumArgument {
