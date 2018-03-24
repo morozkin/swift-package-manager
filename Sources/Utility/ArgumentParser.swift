@@ -825,6 +825,11 @@ public final class ArgumentParser {
         if leftOverArguments.contains(where: { !$0.isOptional }) {
             throw ArgumentParserError.expectedArguments(self, leftOverArguments.map({ $0.name }))
         }
+        // Report if there are any non-optional subparsers positional arguments left which were not present in the arguments.
+        if parent != nil, subparsers.flatMap({ $0.value.positionalArguments }).contains(where: { !$0.isOptional }) {
+            let arguments = subparsers.flatMap({ $0.value.positionalArguments }).filter({ !$0.isOptional }).map({ $0.name })
+            throw ArgumentParserError.expectedArguments(self, arguments)
+        }
         return result
     }
 
